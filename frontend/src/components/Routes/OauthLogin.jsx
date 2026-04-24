@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { SERVER_URL } from "../lib/constants";
 import logo from "../../assets/callmax_cover_removebg.png";
 import UserService from "../../service/UserService";
-import pkg from "../../../package.json"
+import pkg from "../../../package.json";
 
 const OauthLogin = () => {
   const navigate = useNavigate();
@@ -36,70 +36,51 @@ const OauthLogin = () => {
       const checkRes = await fetch(`${SERVER_URL}/api/check-email`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ email }),
       });
 
       const checkData = await checkRes.json();
 
       if (!checkRes.ok || !checkData.success) {
-        setError(checkData.error || "Email is not registered or not authorized.");
+        setError(
+          checkData.error || "Email is not registered or not authorized.",
+        );
         return;
       }
 
-      const {
-        empId,
-        userid,
-        userEmail,
-        lastName,
-        firstName,
-        fullName,
-        userLevel,
-        userStatus,
-      } = checkData.user || {};
+      const user = checkData.user || {};
 
-      if (userStatus?.toLowerCase() !== "active") {
-        setError("This account is not active. Please contact your administrator.");
+      if (user.userStatus?.toLowerCase() !== "active") {
+        setError(
+          "This account is not active. Please contact your administrator.",
+        );
         return;
       }
-
-      UserService.setPendingUser({
-        empId,
-        userid,
-        userEmail,
-        lastName,
-        firstName,
-        fullName,
-        userLevel,
-        userStatus,
-      });
-
-      const requestedDateTime = new Date();
-      const expiryDateTime = new Date(requestedDateTime.getTime() + 3 * 60000);
 
       const otpRes = await fetch(`${SERVER_URL}/api/sendOTP`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({
           emailAddress: email,
-          requestedDateTime: requestedDateTime.toISOString(),
-          expiryDateTime: expiryDateTime.toISOString(),
         }),
       });
 
-      if (!otpRes.ok) {
-        setError("Failed to send OTP. Please try again.");
+      const result = await otpRes.json();
+
+      if (!otpRes.ok || !result.success) {
+        setError(result.message || "Failed to send OTP. Please try again.");
         return;
       }
 
-      const result = await otpRes.json();
-
-      localStorage.setItem("pendingOtpHashed", result.otpHashed);
-      localStorage.setItem("pendingRequestedAt", requestedDateTime.toISOString());
-      localStorage.setItem("pendingExpiryAt", expiryDateTime.toISOString());
+      localStorage.setItem("pendingChallengeId", result.challengeId);
       localStorage.setItem("pendingEmail", email);
+      localStorage.setItem("pendingExpiryAt", result.expiresAt);
+      localStorage.setItem("otpCooldownStart", Date.now());
 
       navigate("/OTP-SECURE", {
-        state: { emailAddress: email, requestedDateTime, expiryDateTime },
+        state: { emailAddress: email },
       });
     } catch (err) {
       console.error(err);
@@ -111,7 +92,6 @@ const OauthLogin = () => {
 
   return (
     <div className="min-h-screen grid grid-cols-1 md:grid-cols-1">
-      
       {/* LEFT — WHITE */}
       {/* <div className="flex flex-col justify-center items-start px-10 lg:px-16 bg-white">
         <img src={logo} alt="Callmax Logo" className="w-56 mb-4" />
@@ -123,7 +103,6 @@ const OauthLogin = () => {
 
       {/* RIGHT — BLUE */}
       <div className="relative flex items-center justify-center bg-gradient-to-br from-[#061326] via-[#0b2c5f] to-[#3b63c4] px-6">
-
         {/* Glass Card */}
         <div className="w-full max-w-md bg-white/10 backdrop-blur-xl border border-white/20 rounded-2xl px-8 py-9 shadow-2xl">
           <div className="flex flex-col items-center justify-center mb-6">
@@ -140,9 +119,7 @@ const OauthLogin = () => {
             </p>
           </div>
 
-          <label className="block text-xs text-white mb-1">
-            Email
-          </label>
+          <label className="block text-xs text-white mb-1">Email</label>
           <input
             type="email"
             placeholder="you@callmaxsolutions.com"

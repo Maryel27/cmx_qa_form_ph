@@ -4,16 +4,37 @@ import { SERVER_URL } from "../components/lib/constants";
 class UserService {
   static BASE_URL = SERVER_URL;
 
-  // Auth is true only after OTP success (manual) or confirmed Google login
+  /*
+  ========================================
+  🔐 AUTH CHECK (WITH 12-HOUR EXPIRY)
+  ========================================
+  */
   static isAuthenticated() {
-    return (
-      !!localStorage.getItem("userId") 
-      // &&
-      // localStorage.getItem("sessionVerified") === "1"
-    );
+    const userId = localStorage.getItem("userId");
+    const sessionVerified = localStorage.getItem("sessionVerified");
+    const loginTime = localStorage.getItem("loginTime");
+
+    if (!userId || sessionVerified !== "1" || !loginTime) {
+      return false;
+    }
+
+    const now = new Date().getTime();
+    const twelveHours = 12 * 60 * 60 * 1000;
+
+    // ⛔ Expired session
+    if (now - Number(loginTime) > twelveHours) {
+      this.logout();
+      return false;
+    }
+
+    return true;
   }
 
-  // ✅ Save pending user (before OTP verification)
+  /*
+  ========================================
+  🟡 PENDING USER (OTP FLOW)
+  ========================================
+  */
   static setPendingUser(user) {
     if (user) {
       localStorage.setItem("pendingUser", JSON.stringify(user));
@@ -31,10 +52,16 @@ class UserService {
 
   static clearPendingUser() {
     localStorage.removeItem("pendingUser");
-    localStorage.removeItem("pendingOtpHashed");
+    localStorage.removeItem("pendingChallengeId");
     localStorage.removeItem("pendingEmail");
+    localStorage.removeItem("pendingExpiryAt");
   }
 
+  /*
+  ========================================
+  🔓 LOGIN (SAVE USER)
+  ========================================
+  */
   static loginUser({
     empId,
     userId,
@@ -44,29 +71,38 @@ class UserService {
     userLevel = "",
     userStatus = "",
   }) {
-    const finalId =
-      userId || (email ? `manual_${email}` : undefined);
+    const finalId = userId || (email ? `manual_${email}` : undefined);
 
     if (!finalId) {
       console.warn("loginUser called without a valid userId/email");
     }
+
     localStorage.setItem("empId", empId || "");
     localStorage.setItem("userId", finalId || "");
     localStorage.setItem("userEmail", email || "");
     localStorage.setItem("userFirstname", firstname || "");
     localStorage.setItem("userLastname", lastname || "");
 
-    // ✅ Keep userLevel and userStatus
+    // ✅ Access + status
     localStorage.setItem("user_access_level", userLevel || "");
     localStorage.setItem("user_status", userStatus || "");
 
+    // ✅ Session flag
     localStorage.setItem("sessionVerified", "1");
+
+    // ✅ Login timestamp (for expiry)
+    localStorage.setItem("loginTime", new Date().getTime());
 
     this.clearPendingUser();
 
     return finalId;
   }
 
+  /*
+  ========================================
+  👤 GET CURRENT USER
+  ========================================
+  */
   static getCurrentUser() {
     const empId = localStorage.getItem("empId");
     const userId = localStorage.getItem("userId");
@@ -87,24 +123,32 @@ class UserService {
     };
   }
 
+  /*
+  ========================================
+  🚪 LOGOUT
+  ========================================
+  */
   static logout() {
     localStorage.removeItem("empId");
     localStorage.removeItem("userId");
     localStorage.removeItem("sessionVerified");
+    localStorage.removeItem("loginTime");
 
     localStorage.removeItem("userEmail");
     localStorage.removeItem("userFirstname");
     localStorage.removeItem("userLastname");
 
-    // ✅ Clear user access data
     localStorage.removeItem("user_access_level");
     localStorage.removeItem("user_status");
 
     this.clearPendingUser();
   }
 
-  // src/service/UserService.js
-
+  /*
+  ========================================
+  🔐 ROLE HELPERS
+  ========================================
+  */
   static user_access_level() {
     return localStorage.getItem("user_access_level") || "";
   }
@@ -123,7 +167,6 @@ class UserService {
     const role = this.user_access_level();
     return ["Super Admin"].includes(role);
   }
-
 }
 
 export default UserService;

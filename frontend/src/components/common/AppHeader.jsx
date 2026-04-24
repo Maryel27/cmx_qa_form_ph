@@ -2,12 +2,14 @@ import React, { useState, useRef, useEffect } from "react";
 import { useNavigate, Link, useLocation } from "react-router-dom";
 import cmxLogo from "../../assets/callmax_cover_removebg.png";
 import cmxLogoDark from "../../assets/cmxlogo-removebg-preview.png";
-import phFlag from "../../assets/phFlag.png"
+import phFlag from "../../assets/phFlag.png";
 import UserService from "../../service/UserService";
-import pkg from "../../../package.json"
+import pkg from "../../../package.json";
+import { SERVER_URL } from "../lib/constants";
 
-const AppHeader = () => {
-  const isAdmin = UserService.getQAAdminRole();
+const AppHeader = ({ user }) => {
+  // const isAdmin = UserService.getQAAdminRole();
+  const isAdmin = ["QA Admin", "Dev", "Super Admin"].includes(user?.userLevel);
   const location = useLocation();
   const APP_VERSION = pkg.version;
   const navigate = useNavigate();
@@ -15,24 +17,25 @@ const AppHeader = () => {
   const dropdownRef = useRef();
   const [showAbout, setShowAbout] = useState(false);
 
-  const { firstname, lastname, email } = UserService.getCurrentUser() || {};
+  // const { firstname, lastname, email } = UserService.getCurrentUser() || {};
 
-  const userName =
-    (firstname && lastname && `${firstname} ${lastname}`) ||
-    firstname ||
-    lastname ||
-    email ||
-    "User";
+  const userName = user?.fullName || user?.userEmail || "User";
 
-  const initials = `${(firstname || "").charAt(0)}${(lastname || "").charAt(0)}`
-    .toUpperCase()
-    .trim() || "U";
+  const initials =
+    `${(user?.firstName || "").charAt(0)}${(user?.lastName || "").charAt(0)}`.toUpperCase() ||
+    "U";
 
   const isActive = (path) => location.pathname.startsWith(path);
 
-  const handleLogout = () => {
-    UserService.logout(); // Clear storage/session
-    navigate("/OauthLogin");
+  const handleLogout = async () => {
+    try {
+      await fetch(`${SERVER_URL}/api/logout`, {
+        method: "POST",
+        credentials: "include",
+      });
+    } catch (e) {}
+
+    window.location.href = "/OauthLogin";
   };
 
   // Close dropdown if clicked outside
@@ -83,7 +86,12 @@ const AppHeader = () => {
               stroke="currentColor"
               viewBox="0 0 24 24"
             >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M19 9l-7 7-7-7"
+              />
             </svg>
           </button>
 
@@ -97,12 +105,12 @@ const AppHeader = () => {
                 Log Out
               </button>
               {isAdmin === true && (
-              <button
-                onClick={() => navigate("/UserManagement")}
-                className="w-full text-left px-4 py-2 hover:bg-gray-100 transition"
-              >
-                Manager Users
-              </button>
+                <button
+                  onClick={() => navigate("/UserManagement")}
+                  className="w-full text-left px-4 py-2 hover:bg-gray-100 transition"
+                >
+                  Manager Users
+                </button>
               )}
               <button
                 onClick={() => {
@@ -157,13 +165,14 @@ const AppHeader = () => {
           )}
         </div>
       </nav>
-      
+
       {showAbout && (
         <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center">
-          <div className="bg-white rounded-lg shadow-xl w-[420px] max-w-[90%]
+          <div
+            className="bg-white rounded-lg shadow-xl w-[420px] max-w-[90%]
                           transform transition-all duration-300
-                          scale-[0.96] opacity-0 animate-[fadeIn_0.3s_ease_forwards]">
-
+                          scale-[0.96] opacity-0 animate-[fadeIn_0.3s_ease_forwards]"
+          >
             {/* Header */}
             <div className="flex justify-between items-center px-5 py-4 border-b">
               <h2 className="text-lg font-semibold text-[#003b5c]">About</h2>
@@ -188,14 +197,17 @@ const AppHeader = () => {
               </div>
 
               <p className="text-sm text-gray-600 leading-relaxed">
-                A secure, enterprise-grade quality management platform developed by
-                <span className="font-medium"> Callmax Solutions</span> to support
-                audit execution, quality assurance, and performance governance.
+                A secure, enterprise-grade quality management platform developed
+                by
+                <span className="font-medium"> Callmax Solutions</span> to
+                support audit execution, quality assurance, and performance
+                governance.
               </p>
 
               <p className="text-sm text-gray-600 leading-relaxed">
-                This application is part of the <span className="font-medium">DREAM-DEVOPS</span> ecosystem
-                and is designed to ensure accuracy, consistency, and operational
+                This application is part of the{" "}
+                <span className="font-medium">DREAM-DEVOPS</span> ecosystem and
+                is designed to ensure accuracy, consistency, and operational
                 excellence across quality processes.
               </p>
 

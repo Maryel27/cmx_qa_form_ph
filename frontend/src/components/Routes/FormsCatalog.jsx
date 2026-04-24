@@ -6,16 +6,18 @@ import axios from "axios";
 import { SERVER_URL } from "../lib/constants";
 //import UserService from "../../service/UserService";
 //import DatePicker from "react-datepicker";
-import CreateQAFormModal from './CreateQAFormModal';
+import CreateQAFormModal from "./CreateQAFormModal";
 //import AuditViewModal from "./AuditViewModal"
 import ViewQAFormModal from "./ViewQAFormModal";
 import UserService from "../../service/UserService";
 import "react-datepicker/dist/react-datepicker.css";
+import { apiFetch } from "../lib/apiFetch";
 
-const FormsCatalog = () => {
+const FormsCatalog = ({ user }) => {
   const navigate = useNavigate();
   const isSuperAdmin = UserService.getSuperAdminRole();
   const [userid, setUserId] = useState("");
+  const [empId, setEmpId] = useState([]);
   const [userName, setUserName] = useState("");
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -33,32 +35,26 @@ const FormsCatalog = () => {
 
   const tableRef = useRef(null);
 
-  const fetchData = async () => {  
+  const fetchData = async () => {
     try {
-      const response = await axios.get(`${SERVER_URL}/api/qa_form_list_catalog`);
-      const rawData = response.data;
-  
-      if (Array.isArray(rawData) && rawData.length === 0) {
+      const res = await apiFetch(`${SERVER_URL}/api/qa_form_list_catalog`);
+
+      if (!res) return; // 🔥 session expired
+
+      const data = await res.json();
+
+      const rawData = data.data || data;
+
+      if (!Array.isArray(rawData) || rawData.length === 0) {
         setRows([]);
         setFilteredRows([]);
         return;
       }
-  
-      const mappedRows = rawData.map(row => ({
-        QA_FORM_NAME: row.QA_FORM_NAME,
-        ACCOUNT: row.ACCOUNT,
-        LOB: row.LOB,
-        TASK: row.TASK,
-        CREATED_DATE: row.CREATED_DATE,
-        CREATED_BY: row.CREATED_BY,
-        STATUS: row.STATUS,
-        ...row,
-      }));
-  
-      setRows(mappedRows);
-      setFilteredRows(applyFilters(mappedRows, searchQuery, hideDisabled));
-    } catch (error) {
-      console.error("❌ Error fetching QA forms:", error);
+
+      setRows(rawData);
+      setFilteredRows(rawData);
+    } catch (err) {
+      console.error("❌ Error fetching QA forms:", err);
     }
   };
 
@@ -92,18 +88,28 @@ const FormsCatalog = () => {
     setFilteredRows(filtered);
   };
 
-  useEffect(() => {
-    fetchData();
+  // useEffect(() => {
+  //   fetchData();
 
-    const storedUserId = localStorage.getItem("userid");
-    const storedUserName = localStorage.getItem("name");
-    setUserId(storedUserId);
-    setUserName(storedUserName);
-  }, []);
+  //   const storedUserId = localStorage.getItem("userid");
+  //   const storedUserName = localStorage.getItem("name");
+  //   setUserId(storedUserId);
+  //   setUserName(storedUserName);
+  // }, []);
+
+  useEffect(() => {
+    if (!user) return;
+
+    setUserId(user.userid);
+    setUserName(user.fullName);
+    setEmpId(user.empId);
+
+    fetchData(); // 🔥 ADD THIS
+  }, [user]);
 
   const handleRowDoubleClick = (qaFormName) => {
-    const fullForm = rows.find(row => row.QA_FORM_NAME === qaFormName); // ✅ matches alias
-  
+    const fullForm = rows.find((row) => row.QA_FORM_NAME === qaFormName); // ✅ matches alias
+
     if (fullForm) {
       const {
         QA_FORM_NAME,
@@ -125,7 +131,7 @@ const FormsCatalog = () => {
         CREATED_BY: CREATED_BY,
         STATUS: STATUS,
       });
-  
+
       setSelectedFormDetails(components);
       setIsViewModalOpen(true);
     } else {
@@ -133,15 +139,14 @@ const FormsCatalog = () => {
     }
   };
 
-
   const headerMap = {
     "QA Form Name": "QA_FORM_NAME",
-    "Account": "ACCOUNT",
-    "LOB": "LOB",
-    "Task": "TASK",
+    Account: "ACCOUNT",
+    LOB: "LOB",
+    Task: "TASK",
     "Created Date": "CREATED_DATE",
     "Created By": "CREATED_BY",
-    "Status": "STATUS",
+    Status: "STATUS",
   };
 
   const handleSort = (columnKey) => {
@@ -192,7 +197,7 @@ const FormsCatalog = () => {
 
   return (
     <div className="h-screen overflow-hidden bg-[#f5f7fa] flex flex-col">
-      <AppHeader />
+      <AppHeader user={user} />
 
       <main className="flex-1 flex overflow-hidden">
         {/* Sidebar Filter Panel */}
@@ -231,19 +236,17 @@ const FormsCatalog = () => {
             Clear Search
           </button>
 
-            <button
-              className="w-full mt-2 bg-blue-300 hover:bg-blue-400 text-sm py-2 rounded text-gray-700"
-              onClick={() => setShowModal(true)}
-            >
-              Create New QA Form
-            </button>
+          <button
+            className="w-full mt-2 bg-blue-300 hover:bg-blue-400 text-sm py-2 rounded text-gray-700"
+            onClick={() => setShowModal(true)}
+          >
+            Create New QA Form
+          </button>
         </aside>
 
         {/* Main Content */}
         <section className="flex-1 flex flex-col px-5 py-4 space-y-4 overflow-hidden">
-        
-
-        {/* QA Forms Table */}
+          {/* QA Forms Table */}
           <div className="overflow-auto bg-white shadow-md rounded-lg">
             <table className="min-w-full border-collapse">
               <thead>
@@ -278,28 +281,48 @@ const FormsCatalog = () => {
                     <tr
                       key={index}
                       className=" hover:bg-blue-50 transition cursor-pointer"
-                      onDoubleClick={() => handleRowDoubleClick(row.QA_FORM_NAME)}
+                      onDoubleClick={() =>
+                        handleRowDoubleClick(row.QA_FORM_NAME)
+                      }
                     >
-                      <td className="px-4 py-3 border-b border-gray-200 text-sm">{row.QA_FORM_NAME || "—"}</td>
-                      <td className="px-4 py-3 border-b border-gray-200 text-sm">{row.ACCOUNT || "—"}</td>
-                      <td className="px-4 py-3 border-b border-gray-200 text-sm">{row.LOB || "—"}</td>
-                      <td className="px-4 py-3 border-b border-gray-200 text-sm">{row.TASK || "—"}</td>
+                      <td className="px-4 py-3 border-b border-gray-200 text-sm">
+                        {row.QA_FORM_NAME || "—"}
+                      </td>
+                      <td className="px-4 py-3 border-b border-gray-200 text-sm">
+                        {row.ACCOUNT || "—"}
+                      </td>
+                      <td className="px-4 py-3 border-b border-gray-200 text-sm">
+                        {row.LOB || "—"}
+                      </td>
+                      <td className="px-4 py-3 border-b border-gray-200 text-sm">
+                        {row.TASK || "—"}
+                      </td>
                       <td className="px-4 py-3 border-b border-gray-200 text-sm">
                         {row.CREATED_DATE
-                          ? new Date(row.CREATED_DATE).toLocaleDateString("en-US", {
-                              year: "numeric",
-                              month: "2-digit",
-                              day: "2-digit",
-                            })
+                          ? new Date(row.CREATED_DATE).toLocaleDateString(
+                              "en-US",
+                              {
+                                year: "numeric",
+                                month: "2-digit",
+                                day: "2-digit",
+                              },
+                            )
                           : "—"}
                       </td>
-                      <td className="px-4 py-3 border-b border-gray-200 text-sm">{row.CREATED_BY || "—"}</td>
-                      <td className="px-4 py-3 border-b border-gray-200 text-sm">{row.STATUS || "—"}</td>
+                      <td className="px-4 py-3 border-b border-gray-200 text-sm">
+                        {row.CREATED_BY || "—"}
+                      </td>
+                      <td className="px-4 py-3 border-b border-gray-200 text-sm">
+                        {row.STATUS || "—"}
+                      </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan="6" className="text-center py-3 text-gray-500 text-sm">
+                    <td
+                      colSpan="6"
+                      className="text-center py-3 text-gray-500 text-sm"
+                    >
                       No QA form data available
                     </td>
                   </tr>
@@ -307,33 +330,30 @@ const FormsCatalog = () => {
               </tbody>
             </table>
           </div>
-
         </section>
 
-      {/* View Modal */}
-      <ViewQAFormModal
-        isOpen={isViewModalOpen}
-        onClose={() => {
-          setIsViewModalOpen(false);
-          setSelectedFormHeader(null);
-          setSelectedFormDetails([]);
-          fetchData(); // 🔄 Refresh the list
-        }}
-        formHeader={selectedFormHeader}
-        formDetails={selectedFormDetails}
-      />
+        {/* View Modal */}
+        <ViewQAFormModal
+          isOpen={isViewModalOpen}
+          onClose={() => {
+            setIsViewModalOpen(false);
+            setSelectedFormHeader(null);
+            setSelectedFormDetails([]);
+            fetchData(); // 🔄 Refresh the list
+          }}
+          formHeader={selectedFormHeader}
+          formDetails={selectedFormDetails}
+        />
 
-      {/*Create QA Form Modal*/}
-      <CreateQAFormModal
-        isOpen={showModal}
-        onClose={() => setShowModal(false)}
-        onSuccess={() => {
-          setShowModal(false); // close modal
-          fetchData();         // refresh form list
-        }}
-      />
-
-
+        {/*Create QA Form Modal*/}
+        <CreateQAFormModal
+          isOpen={showModal}
+          onClose={() => setShowModal(false)}
+          onSuccess={() => {
+            setShowModal(false); // close modal
+            fetchData(); // refresh form list
+          }}
+        />
       </main>
     </div>
   );

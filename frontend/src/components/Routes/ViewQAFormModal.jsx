@@ -40,15 +40,21 @@ const ViewQAFormModal = ({ isOpen, onClose, formHeader, formDetails }) => {
     const isCurrentlyDisabled = formHeader.STATUS === "Disabled";
     const nextStatus = isCurrentlyDisabled ? "Active" : "Disabled";
 
-    const confirm = window.confirm(`Are you sure you want to ${isCurrentlyDisabled ? "enable" : "disable"} this form?`);
+    const confirm = window.confirm(
+      `Are you sure you want to ${isCurrentlyDisabled ? "enable" : "disable"} this form?`,
+    );
     if (!confirm) return;
 
     try {
-      const res = await fetch(`${SERVER_URL}/api/qa_form_list/${formHeader.QA_FORM_NAME}/status`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: nextStatus }),
-      });
+      const res = await fetch(
+        `${SERVER_URL}/api/qa_form_list/${formHeader.QA_FORM_NAME}/status`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include", // 🔥 THIS IS THE FIX
+          body: JSON.stringify({ status: nextStatus }),
+        },
+      );
 
       if (res.ok) {
         // alert(`✅ Form has been ${nextStatus.toLowerCase()}.`);
@@ -96,12 +102,27 @@ const ViewQAFormModal = ({ isOpen, onClose, formHeader, formDetails }) => {
 
                 {/* Header Info */}
                 <div className="grid grid-cols-2 gap-y-2 gap-x-12 text-sm mb-6">
-                  <div><strong>Account:</strong> {formHeader.ACCOUNT || "—"}</div>
-                  <div><strong>LOB:</strong> {formHeader.LOB || "—"}</div>
-                  <div><strong>Task:</strong> {formHeader.TASK || "—"}</div>
-                  <div><strong>Created Date:</strong> {formHeader.CREATED_DATE ? new Date(formHeader.CREATED_DATE).toLocaleDateString() : "—"}</div>
-                  <div><strong>Created By:</strong> {formHeader.CREATED_BY || "—"}</div>
-                  <div><strong>Status:</strong> {formHeader.STATUS || "—"}</div>
+                  <div>
+                    <strong>Account:</strong> {formHeader.ACCOUNT || "—"}
+                  </div>
+                  <div>
+                    <strong>LOB:</strong> {formHeader.LOB || "—"}
+                  </div>
+                  <div>
+                    <strong>Task:</strong> {formHeader.TASK || "—"}
+                  </div>
+                  <div>
+                    <strong>Created Date:</strong>{" "}
+                    {formHeader.CREATED_DATE
+                      ? new Date(formHeader.CREATED_DATE).toLocaleDateString()
+                      : "—"}
+                  </div>
+                  <div>
+                    <strong>Created By:</strong> {formHeader.CREATED_BY || "—"}
+                  </div>
+                  <div>
+                    <strong>Status:</strong> {formHeader.STATUS || "—"}
+                  </div>
                 </div>
 
                 {/* QA Sections Table */}
@@ -111,41 +132,64 @@ const ViewQAFormModal = ({ isOpen, onClose, formHeader, formDetails }) => {
                       <tr className="bg-blue-900 text-white">
                         <th className="text-left px-4 py-2 w-1/3">Section</th>
                         <th className="text-left px-4 py-2 w-1/2">Line Item</th>
-                        <th className="text-center px-4 py-2 w-1/3">Pts Deduction</th>
+                        <th className="text-center px-4 py-2 w-1/3">
+                          Pts Deduction
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
-                      {Object.entries(groupedData).filter(([key]) => key !== "__ALL").map(([compKey, compMeta]) => {
-                        const compTitle = compMeta.title || "Untitled Component";
-                        const isZTP = compKey === "C011";
+                      {Object.entries(groupedData)
+                        .filter(([key]) => key !== "__ALL")
+                        .map(([compKey, compMeta]) => {
+                          const compTitle =
+                            compMeta.title || "Untitled Component";
+                          const isZTP = compKey === "C011";
 
-                        const matchPrefix = isZTP ? "C011_ZTP" : compKey;
+                          const matchPrefix = isZTP ? "C011_ZTP" : compKey;
 
-                        const matchingQuestions = Object.entries(groupedData.__ALL || {})
-                          .filter(([_, qData]) => (qData.QUESTION || "").startsWith(`${matchPrefix} -`))
-                          .map(([_, qData]) => ({
-                            question: (qData.QUESTION || "").replace(`${matchPrefix} -`, ""),
-                            deduction: qData.PTS_DEDUCTIBLE || (isZTP ? "100" : "—"),
-                          }));
+                          const matchingQuestions = Object.entries(
+                            groupedData.__ALL || {},
+                          )
+                            .filter(([_, qData]) =>
+                              (qData.QUESTION || "").startsWith(
+                                `${matchPrefix} -`,
+                              ),
+                            )
+                            .map(([_, qData]) => ({
+                              question: (qData.QUESTION || "").replace(
+                                `${matchPrefix} -`,
+                                "",
+                              ),
+                              deduction:
+                                qData.PTS_DEDUCTIBLE || (isZTP ? "100" : "—"),
+                            }));
 
-                        if (matchingQuestions.length === 0) return null;
+                          if (matchingQuestions.length === 0) return null;
 
-                        return (
-                          <React.Fragment key={compKey}>
-                            {matchingQuestions.map((row, idx) => (
-                              <tr key={`${compKey}-${idx}`} className="border-t border-gray-200">
-                                {idx === 0 && (
-                                  <td rowSpan={matchingQuestions.length} className="font-bold px-4 py-2 align-top whitespace-nowrap">
-                                    {compTitle}
+                          return (
+                            <React.Fragment key={compKey}>
+                              {matchingQuestions.map((row, idx) => (
+                                <tr
+                                  key={`${compKey}-${idx}`}
+                                  className="border-t border-gray-200"
+                                >
+                                  {idx === 0 && (
+                                    <td
+                                      rowSpan={matchingQuestions.length}
+                                      className="font-bold px-4 py-2 align-top whitespace-nowrap"
+                                    >
+                                      {compTitle}
+                                    </td>
+                                  )}
+                                  <td className="px-4 py-2">{row.question}</td>
+                                  <td className="text-center px-4 py-2">
+                                    {row.deduction}
                                   </td>
-                                )}
-                                <td className="px-4 py-2">{row.question}</td>
-                                <td className="text-center px-4 py-2">{row.deduction}</td>
-                              </tr>
-                            ))}
-                          </React.Fragment>
-                        );
-                      })}
+                                </tr>
+                              ))}
+                            </React.Fragment>
+                          );
+                        })}
                     </tbody>
                   </table>
                 </div>
@@ -159,7 +203,9 @@ const ViewQAFormModal = ({ isOpen, onClose, formHeader, formDetails }) => {
                     }`}
                     onClick={toggleStatusHandler}
                   >
-                    {formHeader.STATUS === "Disabled" ? "Enable Form" : "Disable Form"}
+                    {formHeader.STATUS === "Disabled"
+                      ? "Enable Form"
+                      : "Disable Form"}
                   </button>
                   <button
                     className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"

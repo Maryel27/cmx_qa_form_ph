@@ -6,13 +6,12 @@ import axios from "axios";
 import { SERVER_URL } from "../lib/constants";
 import UserService from "../../service/UserService";
 import DatePicker from "react-datepicker";
-import AuditViewModal from "../Routes/AuditViewModal"
+import AuditViewModal from "../Routes/AuditViewModal";
 import "react-datepicker/dist/react-datepicker.css";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 
-
-const QADashboardPage = () => {
+const QADashboardPage = ({ user }) => {
   const navigate = useNavigate();
   const [audits, setAudits] = useState([]);
   const [filtered, setFiltered] = useState([]);
@@ -28,28 +27,42 @@ const QADashboardPage = () => {
   const [sortOrder, setSortOrder] = useState("asc"); // or "desc"
   const [showModal, setShowModal] = useState(false);
   const [selectedAudit, setSelectedAudit] = useState(null);
-  const isQA = UserService.getQARole();
-  const isAdmin = UserService.getQAAdminRole();
+  const isQA = ["QA", "Team Lead", "Manager"].includes(user?.userLevel);
+  const isAdmin = ["QA Admin", "Dev", "Super Admin"].includes(user?.userLevel);
+  // const isQA = UserService.getQARole();
+  // const isAdmin = UserService.getQAAdminRole();
 
+  // useEffect(() => {
+  //   const firstName = localStorage.getItem("userFirstname") || "";
+  //   const lastName = localStorage.getItem("userLastname") || "";
+  //   const storedempId = localStorage.getItem("empId");
+  //   const storedUserId = localStorage.getItem("userId");
+  //   const storedUserName = `${firstName} ${lastName}`.trim();
 
+  //   setUserId(storedUserId);
+  //   setUserName(storedUserName);
+  //   setEmpId(storedempId);
+  //   fetchAudits();
+  // }, []);
 
   useEffect(() => {
-    const firstName = localStorage.getItem("userFirstname") || "";
-    const lastName = localStorage.getItem("userLastname") || "";
-    const storedempId = localStorage.getItem("empId");
-    const storedUserId = localStorage.getItem("userId");
-    const storedUserName = `${firstName} ${lastName}`.trim();
+    if (!user) return;
 
-    setUserId(storedUserId);
-    setUserName(storedUserName);
-    setEmpId(storedempId);
+    setUserId(user.userid);
+    setUserName(user.fullName);
+    setEmpId(user.empId);
+    console.log("user", user);
     fetchAudits();
-  }, []);
+  }, [user]);
 
   const fetchAudits = async () => {
     try {
-      const res = await axios.get(`${SERVER_URL}/api/qaAuditData`);
+      const res = await axios.get(`${SERVER_URL}/api/qaAuditData`, {
+        withCredentials: true, // 🔥 REQUIRED for session
+      });
+
       const data = res.data?.data || [];
+      console.log("AUDITS DATA:", data); // debug
       setAudits(data);
     } catch (err) {
       console.error("Error fetching audits", err);
@@ -68,8 +81,8 @@ const QADashboardPage = () => {
     if (search) {
       result = result.filter((r) =>
         Object.values(r).some((val) =>
-          String(val).toLowerCase().includes(search.toLowerCase())
-        )
+          String(val).toLowerCase().includes(search.toLowerCase()),
+        ),
       );
     }
 
@@ -87,12 +100,24 @@ const QADashboardPage = () => {
       });
     }
 
+    // if (isQA || isAdmin) {
+    //   if (showOnlyMine) {
+    //     result = result.filter((r) => r.EVALUATOR_NAME === userName);
+    //   }
+    // } else {
+    //   result = result.filter((r) => r.AGENT_ID === empId);
+    // }
+
     if (isQA || isAdmin) {
       if (showOnlyMine) {
-        result = result.filter((r) => r.EVALUATOR_NAME === userName);
+        result = result.filter(
+          (r) =>
+            r.EVALUATOR_NAME?.toLowerCase().trim() ===
+            userName?.toLowerCase().trim(),
+        );
       }
     } else {
-      result = result.filter((r) => r.AGENT_ID === empId);
+      result = result.filter((r) => String(r.AGENT_ID) === String(empId));
     }
 
     // Apply sorting
@@ -124,7 +149,7 @@ const QADashboardPage = () => {
 
     setFiltered(result);
   };
-  
+
   const handleSort = (field) => {
     if (sortField === field) {
       setSortOrder(sortOrder === "asc" ? "desc" : "asc");
@@ -136,13 +161,13 @@ const QADashboardPage = () => {
 
   const totalAudits = audits.length;
   const pendingCount = audits.filter((a) =>
-    a.STATUS?.toLowerCase().includes("pending")
+    a.STATUS?.toLowerCase().includes("pending"),
   ).length;
   const acknowledgedCount = audits.filter((a) =>
-    a.STATUS?.toLowerCase().includes("acknowledged")
+    a.STATUS?.toLowerCase().includes("acknowledged"),
   ).length;
   const disputeCount = audits.filter((a) =>
-    a.STATUS?.toLowerCase().includes("dispute")
+    a.STATUS?.toLowerCase().includes("dispute"),
   ).length;
 
   const renderStatusBadge = (status = "") => {
@@ -153,7 +178,9 @@ const QADashboardPage = () => {
     else if (clean.includes("dispute")) colorClass = "bg-red-100 text-red-800";
 
     return (
-      <span className={`px-2 py-1 rounded-full text-xs font-semibold ${colorClass}`}>
+      <span
+        className={`px-2 py-1 rounded-full text-xs font-semibold ${colorClass}`}
+      >
         {status}
       </span>
     );
@@ -171,18 +198,19 @@ const QADashboardPage = () => {
       type: "array",
     });
 
-    const fileData = new Blob([excelBuffer], { type: "application/octet-stream" });
+    const fileData = new Blob([excelBuffer], {
+      type: "application/octet-stream",
+    });
     saveAs(fileData, "QA_Audits.xlsx");
   };
 
   return (
     <div className="h-screen overflow-hidden bg-[#f5f7fa] flex flex-col">
-      <AppHeader />
+      <AppHeader user={user} />
 
       <main className="flex-1 flex overflow-hidden">
         {/* Sidebar Filter Panel */}
         <aside className="w-64 border-r border-gray-200 bg-white/80 p-4 space-y-4">
-
           <div className="flex items-center gap-2 text-sm">
             <input
               type="checkbox"
@@ -203,7 +231,9 @@ const QADashboardPage = () => {
           </div>
 
           <div>
-            <label className="text-xs text-gray-600 mb-1 block">Evaluation Date</label>
+            <label className="text-xs text-gray-600 mb-1 block">
+              Evaluation Date
+            </label>
 
             <div className="flex gap-2 mb-2">
               <DatePicker
@@ -215,7 +245,6 @@ const QADashboardPage = () => {
                 endDate={endDate}
                 placeholderText="Start date"
                 className="w-full mb-2 px-3 py-2 text-sm border border-gray-300 rounded"
-
               />
               <DatePicker
                 popperPlacement="right-start"
@@ -241,7 +270,6 @@ const QADashboardPage = () => {
             >
               Clear Filters
             </button>
-
           </div>
         </aside>
 
@@ -259,8 +287,12 @@ const QADashboardPage = () => {
                 key={label}
                 className="bg-white rounded shadow p-4 border border-gray-200"
               >
-                <div className="text-[11px] text-gray-500 font-medium">{label}</div>
-                <div className="text-lg font-semibold text-[#003b5c]">{count}</div>
+                <div className="text-[11px] text-gray-500 font-medium">
+                  {label}
+                </div>
+                <div className="text-lg font-semibold text-[#003b5c]">
+                  {count}
+                </div>
               </div>
             ))}
           </div>
@@ -268,17 +300,19 @@ const QADashboardPage = () => {
           <div className="flex justify-end">
             <div className="space-x-4">
               <button
-                onClick={() => navigate("/QAForms")} 
-                className="w-28 bg-[#f58220] text-white text-sm py-2 rounded hover:bg-orange-600">
+                onClick={() => navigate("/QAForms")}
+                className="w-28 bg-[#f58220] text-white text-sm py-2 rounded hover:bg-orange-600"
+              >
                 + Add Audit
               </button>
 
               {isAdmin === true && (
-              <button
-                onClick={exportToExcel} 
-                className="w-28 bg-[#00a1c9] text-white text-sm py-2 rounded hover:bg-[#008bb1]">
-                Export to Excel
-              </button>
+                <button
+                  onClick={exportToExcel}
+                  className="w-28 bg-[#00a1c9] text-white text-sm py-2 rounded hover:bg-[#008bb1]"
+                >
+                  Export to Excel
+                </button>
               )}
             </div>
           </div>
@@ -292,56 +326,72 @@ const QADashboardPage = () => {
                     onClick={() => handleSort("QA_FORM_NAME")}
                     title="Click to Sort"
                   >
-                    QA Form {sortField === "QA_FORM_NAME" && (sortOrder === "asc" ? "▲" : "▼")}
+                    QA Form{" "}
+                    {sortField === "QA_FORM_NAME" &&
+                      (sortOrder === "asc" ? "▲" : "▼")}
                   </th>
                   <th
                     className="text-left p-2 cursor-pointer select-none"
                     onClick={() => handleSort("EVALUATION_DATE")}
                     title="Click to Sort"
                   >
-                    Evaluation Date {sortField === "EVALUATION_DATE" && (sortOrder === "asc" ? "▲" : "▼")}
+                    Evaluation Date{" "}
+                    {sortField === "EVALUATION_DATE" &&
+                      (sortOrder === "asc" ? "▲" : "▼")}
                   </th>
                   <th
                     className="text-left p-2 cursor-pointer select-none"
                     onClick={() => handleSort("EVALUATION_TYPE")}
                     title="Click to Sort"
                   >
-                    Evaluation Type {sortField === "EVALUATION_TYPE" && (sortOrder === "asc" ? "▲" : "▼")}
+                    Evaluation Type{" "}
+                    {sortField === "EVALUATION_TYPE" &&
+                      (sortOrder === "asc" ? "▲" : "▼")}
                   </th>
                   <th
                     className="text-left p-2 cursor-pointer select-none"
                     onClick={() => handleSort("EVALUATOR_NAME")}
                     title="Click to Sort"
                   >
-                    Auditor {sortField === "EVALUATOR_NAME" && (sortOrder === "asc" ? "▲" : "▼")}
+                    Auditor{" "}
+                    {sortField === "EVALUATOR_NAME" &&
+                      (sortOrder === "asc" ? "▲" : "▼")}
                   </th>
                   <th
                     className="text-left p-2 cursor-pointer select-none"
                     onClick={() => handleSort("SUPERVISOR_NAME")}
                     title="Click to Sort"
                   >
-                    Supervisor {sortField === "SUPERVISOR_NAME" && (sortOrder === "asc" ? "▲" : "▼")}
+                    Supervisor{" "}
+                    {sortField === "SUPERVISOR_NAME" &&
+                      (sortOrder === "asc" ? "▲" : "▼")}
                   </th>
                   <th
                     className="text-left p-2 cursor-pointer select-none"
                     onClick={() => handleSort("AGENT_NAME")}
                     title="Click to Sort"
                   >
-                    Agent {sortField === "AGENT_NAME" && (sortOrder === "asc" ? "▲" : "▼")}
+                    Agent{" "}
+                    {sortField === "AGENT_NAME" &&
+                      (sortOrder === "asc" ? "▲" : "▼")}
                   </th>
                   <th
                     className="text-left p-2 cursor-pointer select-none"
                     onClick={() => handleSort("QA_SCORE")}
                     title="Click to Sort"
                   >
-                    Score {sortField === "QA_SCORE" && (sortOrder === "asc" ? "▲" : "▼")}
+                    Score{" "}
+                    {sortField === "QA_SCORE" &&
+                      (sortOrder === "asc" ? "▲" : "▼")}
                   </th>
                   <th
                     className="text-left p-2 cursor-pointer select-none"
                     onClick={() => handleSort("STATUS")}
                     title="Click to Sort"
                   >
-                    Status {sortField === "STATUS" && (sortOrder === "asc" ? "▲" : "▼")}
+                    Status{" "}
+                    {sortField === "STATUS" &&
+                      (sortOrder === "asc" ? "▲" : "▼")}
                   </th>
                 </tr>
               </thead>
@@ -365,11 +415,14 @@ const QADashboardPage = () => {
                       <td className="p-2">{audit.QA_FORM_NAME}</td>
                       <td className="p-2">
                         {audit.EVALUATION_DATE
-                          ? new Date(audit.EVALUATION_DATE).toLocaleDateString("en-US", {
-                              month: "2-digit",
-                              day: "2-digit",
-                              year: "numeric",
-                            })
+                          ? new Date(audit.EVALUATION_DATE).toLocaleDateString(
+                              "en-US",
+                              {
+                                month: "2-digit",
+                                day: "2-digit",
+                                year: "numeric",
+                              },
+                            )
                           : "—"}
                       </td>
                       <td className="p-2">{audit.EVALUATION_TYPE}</td>
@@ -399,7 +452,6 @@ const QADashboardPage = () => {
             }}
           />
         )}
-
       </main>
     </div>
   );
