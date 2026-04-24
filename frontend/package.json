@@ -1,6 +1,6 @@
 {
   "name": "frontend",
-  "version": "4.2.7",
+  "version": "5.2.7",
   "private": true,
   "dependencies": {
     "@headlessui/react": "^2.2.9",
