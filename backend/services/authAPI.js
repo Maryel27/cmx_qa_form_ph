@@ -447,6 +447,7 @@ router.post("/sendOTP", async (req, res) => {
     });
   }
 });
+
 /*
 ========================================
 🔓 VERIFY OTP (QA PORTAL - FINAL)
@@ -764,6 +765,29 @@ router.post("/addAppUser", async (req, res) => {
     user_last_name,
     user_access_level,
   } = req.body;
+
+  // ✅ EMAIL VALIDATION
+  const allowedDomain = "callmaxsolutions.com";
+
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  // ❌ INVALID EMAIL FORMAT
+  if (!emailRegex.test(user_email)) {
+    return res.status(400).json({
+      success: false,
+      message: "Invalid email format",
+    });
+  }
+
+  // ❌ INVALID DOMAIN
+  const domain = user_email.split("@")[1]?.toLowerCase();
+
+  if (domain !== allowedDomain) {
+    return res.status(400).json({
+      success: false,
+      message: "Only @callmaxsolutions.com emails are allowed.",
+    });
+  }
 
   const user_full_name = `${user_first_name} ${user_last_name}`;
   const user_status = "Active";

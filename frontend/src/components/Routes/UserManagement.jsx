@@ -126,8 +126,28 @@ const UserManagement = ({ user }) => {
     setFilteredRows(filtered);
   }, [searchQuery, rows]);
 
+  function isEmailAllowed(email, allowedDomains = []) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+    if (!emailRegex.test(email)) return false;
+
+    const domain = email.split("@")[1].toLowerCase();
+
+    return allowedDomains.map((d) => d.toLowerCase()).includes(domain);
+  }
+
   const handleAddUser = async () => {
     try {
+      // ✅ ALLOW ONLY COMPANY EMAILS
+      const allowed = isEmailAllowed(newUser.user_email, [
+        "callmaxsolutions.com",
+      ]);
+
+      if (!allowed) {
+        alert("Only @callmaxsolutions.com emails are allowed.");
+        return;
+      }
+
       // 🔐 CREATE USER
       const res = await apiFetch(`${SERVER_URL}/api/addAppUser`, {
         method: "POST",
